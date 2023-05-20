@@ -8,7 +8,6 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/tmc/langchaingo/llms"
 	"github.com/tmc/langchaingo/llms/openai"
 	"golang.org/x/oauth2"
 
@@ -44,10 +43,10 @@ func main() {
 	// Create a PR
 	pullRequest := getAutoPullRequest(ctx, gitDiff)
 	pullRequest.Base = github.String("main")
-	pullRequest.Base = github.String(gitHead)
+	// pullRequest.Head = github.String(gitHead)
 	pullRequest.Draft = github.Bool(true)
 
-	newPullRequest, r, err := client.PullRequests.Create(ctx, gitUsername, gitRepo, pullRequest)
+	newPullRequest, r, err := client.PullRequests.Create(ctx, gitUsername, gitRepo, &pullRequest)
 	if err != nil {
 		fmt.Printf("Error: %v\n", err)
 	}
@@ -131,15 +130,15 @@ func getAutoPullRequest(ctx context.Context, gitDiff string) github.NewPullReque
 		log.Fatal(err)
 	}
 
-	// titleString := "Create a GitHub PR Title for the following diff:\n" + gitDiff
+	titleString := "Create a GitHub PR Title for the following diff:\n" + gitDiff
 
-	titleString := "What's a good name for a dog?"
-	completion, err := llm.Call(ctx, titleString, llms.WithMaxTokens(10))
+	completion, err := llm.Call(ctx, titleString)
 	if err != nil {
 		log.Fatal(err)
+		panic(err)
 	}
 
-	fmt.Println(completion)
+	fmt.Println("completion:", completion)
 
 	return github.NewPullRequest{
 		Title: github.String(completion),
