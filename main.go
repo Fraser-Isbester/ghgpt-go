@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"os/exec"
 	"strings"
@@ -27,9 +28,16 @@ func main() {
 		Title: github.String("Test PR"),
 		Body:  github.String("This is a test PR"),
 		Draft: github.Bool(true),
+		Base:  github.String("main"),
+		Head:  github.String("test"),
 	}
 
-	client.PullRequests.Create(ctx, owner, repo, pr)
+	prx, response, err := client.PullRequests.Create(ctx, owner, repo, pr)
+	if err != nil {
+		fmt.Printf("Error: %v\n", err)
+	}
+
+	fmt.Println(prx, response, err)
 
 	// // list all repositories for the authenticated user
 	// repos, _, err := client.Repositories.List(ctx, "", nil)
