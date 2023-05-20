@@ -43,14 +43,13 @@ func main() {
 	// Create a PR
 	pullRequest := getAutoPullRequest(ctx, gitDiff)
 	pullRequest.Base = github.String("main")
-	// pullRequest.Head = github.String(gitHead)
+	pullRequest.Head = github.String(gitHead)
 	pullRequest.Draft = github.Bool(true)
 
-	newPullRequest, r, err := client.PullRequests.Create(ctx, gitUsername, gitRepo, &pullRequest)
+	_, _, err = client.PullRequests.Create(ctx, gitUsername, gitRepo, &pullRequest)
 	if err != nil {
 		fmt.Printf("Error: %v\n", err)
 	}
-	fmt.Println(newPullRequest, r)
 
 }
 
@@ -123,6 +122,7 @@ func push(opts pushOpts) error {
 	return nil
 }
 
+// getAutoPullRequest returns a new LLM generated pull request
 func getAutoPullRequest(ctx context.Context, gitDiff string) github.NewPullRequest {
 
 	llm, err := openai.New()
@@ -132,16 +132,28 @@ func getAutoPullRequest(ctx context.Context, gitDiff string) github.NewPullReque
 
 	titleString := "Create a GitHub PR Title for the following diff:\n" + gitDiff
 
-	completion, err := llm.Call(ctx, titleString)
+	title, err := llm.Call(ctx, titleString)
 	if err != nil {
 		log.Fatal(err)
 		panic(err)
 	}
+	title = stripQuotes(strings.TrimSpace(string(title)))
 
-	fmt.Println("completion:", completion)
+	bodyString := "Create a GitHub PR Body for the following diff:\n" + gitDiff
+	body, err := llm.Call(ctx, bodyString)
+	if err != nil {
+		log.Fatal(err)
+		panic(err)
+	}
+	body = stripQuotes(strings.TrimSpace(string(body)))
 
 	return github.NewPullRequest{
-		Title: github.String(completion),
-		Body:  github.String("This is a test PR"),
+		Title: github.String(title),
+		Body:  github.String(body),
 	}
+}
+
+// function that strips starting and ending quotes from a completion
+func stripQuotes(s string) string {
+	return strings.TrimSuffix(strings.TrimPrefix(s, `"`), `"`)
 }
