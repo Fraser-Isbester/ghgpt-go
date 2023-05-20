@@ -4,53 +4,58 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"net/url"
 	"os/exec"
 	"strings"
 
-	"github.com/google/go-github/v41/github"
+	"github.com/tmc/langchaingo/llms"
+	"github.com/tmc/langchaingo/llms/openai"
 	"golang.org/x/oauth2"
+
+	"github.com/google/go-github/v41/github"
 )
 
 func main() {
+
 	ctx := context.Background()
 	token := getToken()
 	ts := oauth2.StaticTokenSource(
 		&oauth2.Token{AccessToken: token},
 	)
 	tc := oauth2.NewClient(ctx, ts)
-
 	client := github.NewClient(tc)
 
-	owner := "fraser-isbester"
-	repo := "ghgpt-go"
+	pathParts := strings.Split(getRepo(), "/")
+	gitUsername := pathParts[1]
+	gitRepo := strings.TrimSuffix(pathParts[2], ".git")
 
-	pr := &github.NewPullRequest{
-		Title: github.String("Test PR"),
-		Body:  github.String("This is a test PR"),
-		Draft: github.Bool(true),
-		Base:  github.String("main"),
-		Head:  github.String("test"),
+	gitHead := getHead()
+	gitRemote := "origin"
+
+	// Push the branch to remote
+	err := push(pushOpts{head: gitHead, remote: gitRemote})
+	if err != nil {
+		fmt.Println(err)
 	}
 
-	prx, response, err := client.PullRequests.Create(ctx, owner, repo, pr)
+	// Get the diff
+	gitDiff := getDiff()
+
+	// Create a PR
+	pullRequest := getAutoPullRequest(ctx, gitDiff)
+	pullRequest.Base = github.String("main")
+	pullRequest.Base = github.String(gitHead)
+	pullRequest.Draft = github.Bool(true)
+
+	newPullRequest, r, err := client.PullRequests.Create(ctx, gitUsername, gitRepo, pullRequest)
 	if err != nil {
 		fmt.Printf("Error: %v\n", err)
 	}
+	fmt.Println(newPullRequest, r)
 
-	fmt.Println(prx, response, err)
-
-	// // list all repositories for the authenticated user
-	// repos, _, err := client.Repositories.List(ctx, "", nil)
-	// if err != nil {
-	// 	fmt.Printf("Error: %v\n", err)
-	// 	return
-	// }
-
-	// for _, repo := range repos {
-	// 	fmt.Printf("Name: %s, URL: %s\n", *repo.Name, *repo.HTMLURL)
-	// }
 }
 
+// gets the github token from the gh cli
 func getToken() string {
 	cmd := exec.Command("gh", "auth", "token")
 
@@ -59,4 +64,85 @@ func getToken() string {
 		log.Fatalf("cmd.Run() failed with %s\n", err)
 	}
 	return strings.TrimSpace(string(output))
+}
+
+// gets the repo name from the git remote
+func getRepo() string {
+	cmd := exec.Command("git", "remote", "get-url", "origin")
+
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		log.Fatalf("cmd.Run() failed with %s\n", err)
+	}
+	rawId := strings.TrimSpace(string(output))
+	rawId = strings.Replace(rawId, ":", "/", 1)
+
+	u, err := url.Parse(rawId)
+	if err != nil {
+		log.Fatal(err)
+	}
+	return u.Path
+}
+
+// gets the current branch name
+func getHead() string {
+	cmd := exec.Command("git", "rev-parse", "--abbrev-ref", "HEAD")
+
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		log.Fatalf("cmd.Run() failed with %s\n", err)
+	}
+	return strings.TrimSpace(string(output))
+}
+
+func getDiff() string {
+	cmd := exec.Command("git", "diff", "origin/main")
+
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		log.Fatalf("cmd.Run() failed with %s\n", err)
+	}
+	return strings.TrimSpace(string(output))
+}
+
+// pushOpts are the options for the push command
+type pushOpts struct {
+	head   string
+	remote string
+}
+
+// push pushes the current branch to remote
+func push(opts pushOpts) error {
+	cmd := exec.Command("git", "push", "-u", opts.remote, opts.head)
+
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		log.Fatalf("cmd.Run() failed with %s\n", err)
+		return err
+	}
+	fmt.Println(string(output))
+	return nil
+}
+
+func getAutoPullRequest(ctx context.Context, gitDiff string) github.NewPullRequest {
+
+	llm, err := openai.New()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// titleString := "Create a GitHub PR Title for the following diff:\n" + gitDiff
+
+	titleString := "What's a good name for a dog?"
+	completion, err := llm.Call(ctx, titleString, llms.WithMaxTokens(10))
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	fmt.Println(completion)
+
+	return github.NewPullRequest{
+		Title: github.String(completion),
+		Body:  github.String("This is a test PR"),
+	}
 }
