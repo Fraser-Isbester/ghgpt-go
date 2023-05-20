@@ -123,6 +123,7 @@ func push(opts pushOpts) error {
 	return nil
 }
 
+// getAutoPullRequest returns a new LLM generated pull request
 func getAutoPullRequest(ctx context.Context, gitDiff string) github.NewPullRequest {
 
 	llm, err := openai.New()
