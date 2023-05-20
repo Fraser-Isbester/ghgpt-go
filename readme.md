@@ -1,4 +1,4 @@
-# GHGPT-GO (GitHub GPT - Go)
+# GitHub GPT - GO
 
 This is a simple Golang program that automates the creation of GitHub pull requests. It uses both the Go GitHub client and the OpenAI Language Model API to generate Pull Request titles and descriptions based on the `git diff` from your local repository.
 
