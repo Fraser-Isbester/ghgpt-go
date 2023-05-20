@@ -46,11 +46,10 @@ func main() {
 	pullRequest.Head = github.String(gitHead)
 	pullRequest.Draft = github.Bool(true)
 
-	newPullRequest, r, err := client.PullRequests.Create(ctx, gitUsername, gitRepo, &pullRequest)
+	_, _, err = client.PullRequests.Create(ctx, gitUsername, gitRepo, &pullRequest)
 	if err != nil {
 		fmt.Printf("Error: %v\n", err)
 	}
-	fmt.Println(newPullRequest, r)
 
 }
 
@@ -138,7 +137,7 @@ func getAutoPullRequest(ctx context.Context, gitDiff string) github.NewPullReque
 		log.Fatal(err)
 		panic(err)
 	}
-	title = strings.TrimSpace(string(title))
+	title = stripQuotes(strings.TrimSpace(string(title)))
 
 	bodyString := "Create a GitHub PR Body for the following diff:\n" + gitDiff
 	body, err := llm.Call(ctx, bodyString)
@@ -146,10 +145,15 @@ func getAutoPullRequest(ctx context.Context, gitDiff string) github.NewPullReque
 		log.Fatal(err)
 		panic(err)
 	}
-	body = strings.TrimSpace(string(body))
+	body = stripQuotes(strings.TrimSpace(string(body)))
 
 	return github.NewPullRequest{
 		Title: github.String(title),
 		Body:  github.String(body),
 	}
+}
+
+// function that strips starting and ending quotes from a completion
+func stripQuotes(s string) string {
+	return strings.TrimSuffix(strings.TrimPrefix(s, `"`), `"`)
 }
